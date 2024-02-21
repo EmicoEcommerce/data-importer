@@ -13,20 +13,22 @@
  *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
+declare(strict_types=1);
+
 namespace Pimcore\Bundle\DataImporterBundle\Mapping\Operator\Simple;
 
 use Pimcore\Bundle\DataImporterBundle\Exception\InvalidConfigurationException;
 use Pimcore\Bundle\DataImporterBundle\Mapping\Operator\AbstractOperator;
 use Pimcore\Bundle\DataImporterBundle\Mapping\Type\TransformationDataTypeService;
 
-class StringReplace extends AbstractOperator
+class RegexReplace extends AbstractOperator
 {
     protected string $search;
     protected string $replace;
 
     public function setSettings(array $settings): void
     {
-        $this->search = $settings['search'] ?? '';
+        $this->search = '/' . trim($settings['search'], '/') . '/';
         $this->replace = $settings['replace'] ?? '';
     }
 
@@ -38,24 +40,17 @@ class StringReplace extends AbstractOperator
      */
     public function process($inputData, bool $dryRun = false)
     {
-        $returnScalar = false;
-        if (!is_array($inputData)) {
-            $returnScalar = true;
-            $inputData = [$inputData];
-        }
-
-        foreach ($inputData as &$data) {
-            $data = preg_replace($this->search, $this->replace, $data);
-        }
-
-        if ($returnScalar) {
-            if (!empty($inputData)) {
-                return reset($inputData);
-            }
-
+        if (empty($inputData)) {
             return null;
         }
-        return $inputData;
+
+        if (!is_array($inputData)) {
+            return preg_replace($this->search, $this->replace, $inputData);
+        }
+        return array_map(
+            fn(string $data) => preg_replace($this->search, $this->replace, $data),
+            $inputData
+        );
     }
 
     /**
@@ -69,7 +64,7 @@ class StringReplace extends AbstractOperator
     public function evaluateReturnType(string $inputType, int $index = null): string
     {
         if (!in_array($inputType, [TransformationDataTypeService::DEFAULT_TYPE, TransformationDataTypeService::DEFAULT_ARRAY])) {
-            throw new InvalidConfigurationException(sprintf("Unsupported input type '%s' for string replace operator at transformation position %s", $inputType, $index));
+            throw new InvalidConfigurationException(sprintf("Unsupported input type '%s' for regex replace operator at transformation position %s", $inputType, $index));
         }
 
         return $inputType;
